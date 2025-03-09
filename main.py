@@ -188,9 +188,9 @@ def detect_fule_contamination(fule_data: fuleDetectionUpdate):
     # Insert instead of updating (to allow multiple records)
     try:
         result = fule_detection_collection.insert_one(fule_data_entry)
-        print(f"✅ Successfully inserted! Inserted ID: {result.inserted_id}")
+        print(f"Successfully inserted! Inserted ID: {result.inserted_id}")
     except Exception as e:
-        print(f"❌ MongoDB Insert Error: {e}")
+        print(f" MongoDB Insert Error: {e}")
         raise HTTPException(status_code=500, detail="Database insert failed")
 
     # Alert message
@@ -205,7 +205,7 @@ def detect_fule_contamination(fule_data: fuleDetectionUpdate):
 
     try:
         alert_logs_collection.insert_one(alert_entry)
-        print("✅ Alert saved successfully!")
+        print(" Alert saved successfully!")
     except Exception as e:
         print(f"❌ MongoDB Insert Error in alert_logs: {e}")
         raise HTTPException(status_code=500, detail="Alert logging failed")
