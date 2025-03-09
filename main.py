@@ -165,7 +165,7 @@ def detect_fuel_theft():
 
         # If the fuel level dropped by more than 10 units within 2 minutes, trigger theft alert
         if time_difference.total_seconds() < 120 and last_fuel_level - fuel_record["fuel_level"] > 10:
-            return {"alert": "🚨 Fuel theft detected! Immediate drop in fuel level."}
+            return {"alert": " Fuel theft detected! Immediate drop in fuel level."}
 
     return {"message": "No theft detected"}
 
@@ -194,7 +194,7 @@ def detect_fule_contamination(fule_data: fuleDetectionUpdate):
         raise HTTPException(status_code=500, detail="Database insert failed")
 
     # Alert message
-    alert_message = "🚨 fule contamination detected! Immediate action required."
+    alert_message = " fule contamination detected! Immediate action required."
 
     # Insert alert in `alert_logs_collection`
     alert_entry = {
@@ -224,7 +224,7 @@ def get_latest_alert():
         raise HTTPException(status_code=404, detail="No alerts found.")
 
     return {
-        "alert": latest_alert.get("alert", "🚨 No recent alerts."),
+        "alert": latest_alert.get("alert", " No recent alerts."),
         "address": latest_alert.get("address", "Unknown location."),
         "last_updated": latest_alert.get("last_updated", "No timestamp available.")
         }
