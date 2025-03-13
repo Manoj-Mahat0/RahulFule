@@ -155,11 +155,14 @@ def update_fuel_level(fuel_data: FuelLevelUpdate):
 # Get Fuel Level
 @app.get("/fuel-level")
 def get_fuel_level():
-    # Get the first document (since it's a single-user application)
-    fuel_record = fuel_collection.find_one({}, {"_id": 0})  # Correct query
+    # Fetch the most recent fuel level entry
+    fuel_record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
 
     if not fuel_record:
         raise HTTPException(status_code=404, detail="Fuel level data not found")
+
+    # Debugging: Print fetched data
+    print(f"Fetched Fuel Record: {fuel_record}")
 
     response = {
         "fuel_level": fuel_record.get("fuel_level", "Unknown"),
@@ -168,7 +171,7 @@ def get_fuel_level():
 
     # Add alert if fuel level is low
     if isinstance(fuel_record.get("fuel_level"), int) and fuel_record["fuel_level"] <= 30:
-        response["alert"] = "Warning: Fuel level is below 30%! Please refill soon."
+        response["alert"] = "⚠️ Warning: Fuel level is below 30%! Please refill soon."
 
     return response
 
