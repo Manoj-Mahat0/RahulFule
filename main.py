@@ -171,7 +171,7 @@ def get_fuel_level():
 
     # Add alert if fuel level is low
     if isinstance(fuel_record.get("fuel_level"), int) and fuel_record["fuel_level"] <= 30:
-        response["alert"] = "⚠️ Warning: Fuel level is below 30%! Please refill soon."
+        response["alert"] = " Warning: Fuel level is below 30%! Please refill soon."
 
     return response
 
@@ -200,7 +200,7 @@ def detect_fuel_theft():
     if time_difference.total_seconds() < 120 and (last_fuel_level - current_fuel_level) > 10:
         return {
             "message": "Theft detected",
-            "alert": "🚨 Fuel theft detected! Immediate drop in fuel level."
+            "alert": "Fuel theft detected! Immediate drop in fuel level."
         }
 
     return {"message": "No theft detected"}
@@ -230,7 +230,7 @@ def detect_fule_contamination(fule_data: fuleDetectionUpdate):
         raise HTTPException(status_code=500, detail="Database insert failed")
 
     # Alert message
-    alert_message = "🚨 fule contamination detected! Immediate action required."
+    alert_message = "fule contamination detected! Immediate action required."
 
     # Insert alert in `alert_logs_collection`
     alert_entry = {
@@ -260,7 +260,7 @@ def get_latest_alert():
         raise HTTPException(status_code=404, detail="No alerts found.")
 
     return {
-        "alert": latest_alert.get("alert", "🚨 No recent alerts."),
+        "alert": latest_alert.get("alert", " No recent alerts."),
         "address": latest_alert.get("address", "Unknown location."),
         "last_updated": latest_alert.get("last_updated", "No timestamp available.")
         }
