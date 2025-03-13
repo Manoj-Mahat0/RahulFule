@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pymongo import MongoClient
 import bcrypt
@@ -17,6 +18,14 @@ MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://Mj:ngY5YaP0VjT4BCSt@rfule.gh93
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Change this to ["https://yourfrontend.com"] in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # MongoDB Connection
 client = MongoClient(MONGO_URI)
 db = client["login_system"]
@@ -24,6 +33,7 @@ users_collection = db["users"]
 fuel_collection = db["fuel_levels"]
 fule_detection_collection = db["fule_detection"]
 alert_logs_collection = db["alert_logs"]  # Separate collection for alerts
+device_status_collection = db["device_status"]
 
 
 # Indexing MongoDB for faster queries
@@ -49,6 +59,9 @@ class FuelLevelUpdate(BaseModel):
 class fuleDetectionUpdate(BaseModel):
     status: str  # Accepts "HIGH" or "LOW"
     address: str  # Address where fule contamination is detected
+    
+class DeviceStatusUpdate(BaseModel):
+    status: str  # Accepts "active" or "deactive"
 
 # Hashing Password
 def hash_password(password: str) -> str:
@@ -116,15 +129,27 @@ def protected_route(user=Depends(get_current_user)):
 
 @app.post("/update-fuel")
 def update_fuel_level(fuel_data: FuelLevelUpdate):
-    # Ensuring only one document exists for fuel data
-    fuel_collection.update_one(
-        {},  # Empty filter updates the first available document
-        {"$set": {"fuel_level": fuel_data.fuel_level, "last_updated": datetime.datetime.utcnow()}},
-        upsert=True  # Creates a document if it doesn't exist
-    )
+    current_time = datetime.datetime.utcnow()
+
+    # Fetch the most recent fuel level
+    last_fuel_record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
+
+    if last_fuel_record:
+        last_fuel_level = last_fuel_record.get("fuel_level", None)
+    else:
+        last_fuel_level = None  # No previous record found
+
+    # Update the fuel level and keep the previous level stored
+    fuel_collection.insert_one({
+        "previous_fuel_level": last_fuel_level,  # Store old fuel level
+        "fuel_level": fuel_data.fuel_level,  # Store new fuel level
+        "last_updated": current_time
+    })
+
     return {
         "message": "Fuel level updated successfully",
-        "fuel_level": fuel_data.fuel_level
+        "previous_fuel_level": last_fuel_level,
+        "current_fuel_level": fuel_data.fuel_level
     }
 
 # Get Fuel Level
@@ -150,28 +175,32 @@ def get_fuel_level():
 # Detect Fuel Theft
 @app.get("/detect-theft")
 def detect_fuel_theft():
-    # Fetch the latest fuel record
-    fuel_record = fuel_collection.find_one({}, {"_id": 0})
+    # Fetch the latest fuel record (sorted by most recent)
+    fuel_record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
 
     if not fuel_record:
-        raise HTTPException(status_code=404, detail="Fuel level data not found")
+        return {"message": "No theft detected"}
 
-    last_fuel_level = fuel_record.get("fuel_level")
+    last_fuel_level = fuel_record.get("previous_fuel_level")  # Previous fuel level
+    current_fuel_level = fuel_record.get("fuel_level")  # Current fuel level
     last_updated = fuel_record.get("last_updated")
 
-    # Ensure both fuel level and timestamp exist
-    if last_fuel_level is not None and last_updated:
-        time_difference = datetime.datetime.utcnow() - last_updated
+    if last_fuel_level is None or last_updated is None:
+        return {"message": "No theft detected"}
 
-        # If the fuel level dropped by more than 10 units within 2 minutes, trigger theft alert
-        if time_difference.total_seconds() < 120 and last_fuel_level - fuel_record["fuel_level"] > 10:
-            return {
-                "message": "Theft detected",
-                "alert": "🚨 Fuel theft detected! Immediate drop in fuel level."
-            }
+    time_difference = datetime.datetime.utcnow() - last_updated
+
+    # Log values for debugging
+    print(f"Previous Fuel Level: {last_fuel_level}, Current Fuel Level: {current_fuel_level}, Time Difference: {time_difference.total_seconds()}s")
+
+    # Detect theft: If fuel drops by more than 10 within 2 minutes
+    if time_difference.total_seconds() < 120 and (last_fuel_level - current_fuel_level) > 10:
+        return {
+            "message": "Theft detected",
+            "alert": "🚨 Fuel theft detected! Immediate drop in fuel level."
+        }
 
     return {"message": "No theft detected"}
-
 
 # 🚰 **1️⃣ Detect fule Contamination & Store Alert**
 @app.post("/detect-fule")
@@ -192,13 +221,13 @@ def detect_fule_contamination(fule_data: fuleDetectionUpdate):
     # Insert instead of updating (to allow multiple records)
     try:
         result = fule_detection_collection.insert_one(fule_data_entry)
-        print(f"Successfully inserted! Inserted ID: {result.inserted_id}")
+        print(f"✅ Successfully inserted! Inserted ID: {result.inserted_id}")
     except Exception as e:
-        print(f" MongoDB Insert Error: {e}")
+        print(f"❌ MongoDB Insert Error: {e}")
         raise HTTPException(status_code=500, detail="Database insert failed")
 
     # Alert message
-    alert_message = " fule contamination detected! Immediate action required."
+    alert_message = "🚨 fule contamination detected! Immediate action required."
 
     # Insert alert in `alert_logs_collection`
     alert_entry = {
@@ -209,7 +238,7 @@ def detect_fule_contamination(fule_data: fuleDetectionUpdate):
 
     try:
         alert_logs_collection.insert_one(alert_entry)
-        print(" Alert saved successfully!")
+        print("✅ Alert saved successfully!")
     except Exception as e:
         print(f"❌ MongoDB Insert Error in alert_logs: {e}")
         raise HTTPException(status_code=500, detail="Alert logging failed")
@@ -228,7 +257,7 @@ def get_latest_alert():
         raise HTTPException(status_code=404, detail="No alerts found.")
 
     return {
-        "alert": latest_alert.get("alert", " No recent alerts."),
+        "alert": latest_alert.get("alert", "🚨 No recent alerts."),
         "address": latest_alert.get("address", "Unknown location."),
         "last_updated": latest_alert.get("last_updated", "No timestamp available.")
         }
