@@ -228,7 +228,7 @@ def detect_fule_contamination(fule_data: FuleDetectionUpdate):
 
 # 🚰 **1️⃣ Detect fule Contamination & Store Alert**
 @app.post("/detect-fule")
-def detect_fule_contamination(fule_data: fuleDetectionUpdate):
+def detect_fule_contamination(fule_data: FuleDetectionUpdate):
     timestamp = datetime.datetime.utcnow()
     formatted_timestamp = timestamp.isoformat()
 
