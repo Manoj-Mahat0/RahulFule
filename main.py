@@ -56,9 +56,9 @@ class UserLogin(BaseModel):
 class FuelLevelUpdate(BaseModel):
     fuel_level: int
 
-class fuleDetectionUpdate(BaseModel):
+class FuleDetectionUpdate(BaseModel):  # Renamed from 'fuleDetectionUpdate'
     status: str  # Accepts "HIGH" or "LOW"
-    address: str  # Address where fule contamination is detected
+    address: str  # Address where fuel contamination is detected
     contamination_level: float  # How much contamination is detected
     
 class DeviceStatusUpdate(BaseModel):
@@ -178,7 +178,7 @@ def get_fuel_level():
 
 # Detect Fuel Theft
 @app.post("/detect-fule")
-def detect_fule_contamination(fule_data: FuleDetectionUpdate):
+def detect_fule_contamination(fule_data: FuleDetectionUpdate):  # Now using the correct name
     timestamp = datetime.datetime.utcnow()
 
     # Debugging: Print received data
@@ -201,7 +201,7 @@ def detect_fule_contamination(fule_data: FuleDetectionUpdate):
         raise HTTPException(status_code=500, detail="Database insert failed")
 
     # Alert message
-    alert_message = f" Fuel contamination detected! Contamination Level: {fule_data.contamination_level}%. Immediate action required."
+    alert_message = f"🚨 Fuel contamination detected! Contamination Level: {fule_data.contamination_level}%. Immediate action required."
 
     # Store alert in `alert_logs_collection`
     alert_entry = {
@@ -224,6 +224,7 @@ def detect_fule_contamination(fule_data: FuleDetectionUpdate):
         "address": fule_data.address,
         "contamination_level": fule_data.contamination_level
     }
+
 
 
 # 🚰 **1️⃣ Detect fule Contamination & Store Alert**
