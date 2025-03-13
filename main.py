@@ -150,8 +150,8 @@ def get_fuel_level():
 # Detect Fuel Theft
 @app.get("/detect-theft")
 def detect_fuel_theft():
-    # Fetch the latest fuel record (since it's a single-user app)
-    fuel_record = fuel_collection.find_one({}, {"_id": 0})  # Correct query
+    # Fetch the latest fuel record
+    fuel_record = fuel_collection.find_one({}, {"_id": 0})
 
     if not fuel_record:
         raise HTTPException(status_code=404, detail="Fuel level data not found")
@@ -165,9 +165,13 @@ def detect_fuel_theft():
 
         # If the fuel level dropped by more than 10 units within 2 minutes, trigger theft alert
         if time_difference.total_seconds() < 120 and last_fuel_level - fuel_record["fuel_level"] > 10:
-            return {"alert": " Fuel theft detected! Immediate drop in fuel level."}
+            return {
+                "message": "Theft detected",
+                "alert": "🚨 Fuel theft detected! Immediate drop in fuel level."
+            }
 
     return {"message": "No theft detected"}
+
 
 # 🚰 **1️⃣ Detect fule Contamination & Store Alert**
 @app.post("/detect-fule")
