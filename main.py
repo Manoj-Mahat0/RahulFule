@@ -179,53 +179,52 @@ def get_fuel_level():
     return response
 
 # Detect Fuel Theft
-@app.post("/detect-fule")
-def detect_fule_contamination(fule_data: FuleDetectionUpdate):
+@app.get("/detect-fule")
+def detect_fuel_contamination():
     timestamp = datetime.datetime.utcnow()
 
-    # Debugging: Print received data
-    print(f"📢 Received data: status={fule_data.status}, address={fule_data.address}, contamination_level={fule_data.contamination_level}")
+    # Fetch the most recent fuel level entry from MongoDB
+    last_fuel_record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
 
-    # Prepare the document to insert into MongoDB
-    fule_data_entry = {
-        "status": fule_data.status,
-        "address": fule_data.address,
-        "contamination_level": fule_data.contamination_level,
-        "last_updated": timestamp
+    if not last_fuel_record:
+        raise HTTPException(status_code=404, detail="Fuel level data not found")
+
+    previous_fuel_level = last_fuel_record.get("previous_fuel_level", 0)
+    current_fuel_level = last_fuel_record.get("fuel_level", 0)
+
+    # Calculate contamination level (percentage of fuel loss)
+    if previous_fuel_level > 0:
+        contamination_level = ((previous_fuel_level - current_fuel_level) / previous_fuel_level) * 100
+    else:
+        contamination_level = 0  # Avoid division by zero
+
+    # Prepare response
+    response = {
+        "message": "Fuel contamination detected",
+        "previous_fuel_level": previous_fuel_level,
+        "current_fuel_level": current_fuel_level,
+        "contamination_level": round(contamination_level, 2),
+        "last_updated": last_fuel_record.get("last_updated")
     }
 
-    # Insert into database
-    try:
-        result = fule_detection_collection.insert_one(fule_data_entry)
-        print(f"✅ Successfully inserted! Inserted ID: {result.inserted_id}")
-    except Exception as e:
-        print(f"❌ MongoDB Insert Error: {e}")
-        raise HTTPException(status_code=500, detail="Database insert failed")
-
-    # Alert message
-    alert_message = f" Fuel contamination detected! Contamination Level: {fule_data.contamination_level}%. Immediate action required."
+    # Store contamination data into `fule_detection_collection`
+    fule_detection_collection.insert_one({
+        "status": "HIGH" if contamination_level > 10 else "LOW",
+        "address": "Unknown",  # No address in GET request
+        "contamination_level": contamination_level,
+        "previous_fuel_level": previous_fuel_level,
+        "current_fuel_level": current_fuel_level,
+        "last_updated": timestamp
+    })
 
     # Store alert in `alert_logs_collection`
-    alert_entry = {
-        "alert": alert_message,
-        "address": fule_data.address,
-        "contamination_level": fule_data.contamination_level,
-        "last_updated": timestamp
-    }
+    alert_message = f" Fuel contamination detected! Contamination Level: {contamination_level:.2f}%."
+    alert_logs_collection.insert_one({
+        "message": alert_message,
+        "timestamp": timestamp
+    })
 
-    try:
-        alert_logs_collection.insert_one(alert_entry)
-        print("✅ Alert saved successfully!")
-    except Exception as e:
-        print(f"❌ MongoDB Insert Error in alert_logs: {e}")
-        raise HTTPException(status_code=500, detail="Alert logging failed")
-
-    return {
-        "message": "Fuel contamination detected successfully",
-        "status": fule_data.status,
-        "address": fule_data.address,
-        "contamination_level": fule_data.contamination_level
-    }
+    return response
 
 
 # 🚰 **1️⃣ Detect fule Contamination & Store Alert**
