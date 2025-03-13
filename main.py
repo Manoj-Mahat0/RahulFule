@@ -226,67 +226,6 @@ def detect_fuel_contamination():
 
     return response
 
-
-# 🚰 **1️⃣ Detect fule Contamination & Store Alert**
-@app.post("/detect-fule")
-def detect_fule_contamination(fule_data: FuleDetectionUpdate):
-    timestamp = datetime.datetime.timestamp()
-
-    # Calculate contamination level as percentage drop
-    if fule_data.previous_fuel_level > 0:
-        contamination_level = ((fule_data.previous_fuel_level - fule_data.current_fuel_level) / fule_data.previous_fuel_level) * 100
-    else:
-        raise HTTPException(status_code=400, detail="Previous fuel level must be greater than zero")
-
-    # Debugging output
-    print(f"📢 Received data: status={fule_data.status}, address={fule_data.address}, "
-          f"previous_fuel_level={fule_data.previous_fuel_level}, current_fuel_level={fule_data.current_fuel_level}, "
-          f"calculated contamination_level={contamination_level}%")
-
-    # Prepare the document to insert into MongoDB
-    fule_data_entry = {
-        "status": fule_data.status,
-        "address": fule_data.address,
-        "previous_fuel_level": fule_data.previous_fuel_level,
-        "current_fuel_level": fule_data.current_fuel_level,
-        "contamination_level": contamination_level,
-        "last_updated": timestamp
-    }
-
-    # Insert into database
-    try:
-        result = fule_detection_collection.insert_one(fule_data_entry)
-        print(f"✅ Successfully inserted! Inserted ID: {result.inserted_id}")
-    except Exception as e:
-        print(f"❌ MongoDB Insert Error: {e}")
-        raise HTTPException(status_code=500, detail="Database insert failed")
-
-    # Alert message
-    alert_message = f" Fuel contamination detected! Contamination Level: {contamination_level}%. Immediate action required."
-
-    # Store alert in `alert_logs_collection`
-    alert_entry = {
-        "alert": alert_message,
-        "address": fule_data.address,
-        "contamination_level": contamination_level,
-        "last_updated": timestamp
-    }
-
-    try:
-        alert_logs_collection.insert_one(alert_entry)
-        print("✅ Alert saved successfully!")
-    except Exception as e:
-        print(f"❌ MongoDB Insert Error in alert_logs: {e}")
-        raise HTTPException(status_code=500, detail="Alert logging failed")
-
-    return {
-        "message": "Fuel contamination detected successfully",
-        "status": fule_data.status,
-        "address": fule_data.address,
-        "previous_fuel_level": fule_data.previous_fuel_level,
-        "current_fuel_level": fule_data.current_fuel_level,
-        "contamination_level": contamination_level
-    }
 # 📢 **2️⃣ Fetch the Latest Alert Message**
 @app.get("/get-latest-alert")
 def get_latest_alert():
