@@ -59,6 +59,7 @@ class FuelLevelUpdate(BaseModel):
 class fuleDetectionUpdate(BaseModel):
     status: str  # Accepts "HIGH" or "LOW"
     address: str  # Address where fule contamination is detected
+    contamination_level: float  # How much contamination is detected
     
 class DeviceStatusUpdate(BaseModel):
     status: str  # Accepts "active" or "deactive"
@@ -176,34 +177,54 @@ def get_fuel_level():
     return response
 
 # Detect Fuel Theft
-@app.get("/detect-theft")
-def detect_fuel_theft():
-    # Fetch the latest fuel record (sorted by most recent)
-    fuel_record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
+@app.post("/detect-fule")
+def detect_fule_contamination(fule_data: FuleDetectionUpdate):
+    timestamp = datetime.datetime.utcnow()
 
-    if not fuel_record:
-        return {"message": "No theft detected"}
+    # Debugging: Print received data
+    print(f"📢 Received data: status={fule_data.status}, address={fule_data.address}, contamination_level={fule_data.contamination_level}")
 
-    last_fuel_level = fuel_record.get("previous_fuel_level")  # Previous fuel level
-    current_fuel_level = fuel_record.get("fuel_level")  # Current fuel level
-    last_updated = fuel_record.get("last_updated")
+    # Prepare the document to insert into MongoDB
+    fule_data_entry = {
+        "status": fule_data.status,
+        "address": fule_data.address,
+        "contamination_level": fule_data.contamination_level,
+        "last_updated": timestamp
+    }
 
-    if last_fuel_level is None or last_updated is None:
-        return {"message": "No theft detected"}
+    # Insert into database
+    try:
+        result = fule_detection_collection.insert_one(fule_data_entry)
+        print(f"✅ Successfully inserted! Inserted ID: {result.inserted_id}")
+    except Exception as e:
+        print(f"❌ MongoDB Insert Error: {e}")
+        raise HTTPException(status_code=500, detail="Database insert failed")
 
-    time_difference = datetime.datetime.utcnow() - last_updated
+    # Alert message
+    alert_message = f" Fuel contamination detected! Contamination Level: {fule_data.contamination_level}%. Immediate action required."
 
-    # Log values for debugging
-    print(f"Previous Fuel Level: {last_fuel_level}, Current Fuel Level: {current_fuel_level}, Time Difference: {time_difference.total_seconds()}s")
+    # Store alert in `alert_logs_collection`
+    alert_entry = {
+        "alert": alert_message,
+        "address": fule_data.address,
+        "contamination_level": fule_data.contamination_level,
+        "last_updated": timestamp
+    }
 
-    # Detect theft: If fuel drops by more than 10 within 2 minutes
-    if time_difference.total_seconds() < 120 and (last_fuel_level - current_fuel_level) > 10:
-        return {
-            "message": "Theft detected",
-            "alert": "Fuel theft detected! Immediate drop in fuel level."
-        }
+    try:
+        alert_logs_collection.insert_one(alert_entry)
+        print("✅ Alert saved successfully!")
+    except Exception as e:
+        print(f"❌ MongoDB Insert Error in alert_logs: {e}")
+        raise HTTPException(status_code=500, detail="Alert logging failed")
 
-    return {"message": "No theft detected"}
+    return {
+        "message": "Fuel contamination detected successfully",
+        "status": fule_data.status,
+        "address": fule_data.address,
+        "contamination_level": fule_data.contamination_level
+    }
+
 
 # 🚰 **1️⃣ Detect fule Contamination & Store Alert**
 @app.post("/detect-fule")
