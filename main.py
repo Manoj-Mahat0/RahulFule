@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from pymongo import MongoClient
 import bcrypt
 import jwt
-from datetime import datetime  # Import the datetime class
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
 import requests
@@ -78,7 +78,7 @@ def verify_password(password: str, hashed_password: str) -> bool:
 def create_jwt_token(phone: str):
     payload = {
         "sub": phone,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+        "exp": datetime.utcnow() + timedelta(hours=24)  # Fix here
     }
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
