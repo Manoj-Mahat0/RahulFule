@@ -181,7 +181,7 @@ def get_fuel_level():
 # Detect Fuel Theft
 @app.get("/detect-fule")
 def detect_fuel_contamination():
-    timestamp = datetime.datetime.utcnow()
+    timestamp = datetime.utcnow()  # Correct way to get current UTC time
 
     # Fetch the most recent fuel level entry from MongoDB
     last_fuel_record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
