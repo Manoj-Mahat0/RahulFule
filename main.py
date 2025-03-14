@@ -132,7 +132,7 @@ def protected_route(user=Depends(get_current_user)):
 
 @app.post("/update-fuel")
 def update_fuel_level(fuel_data: FuelLevelUpdate):
-    current_time = datetime.datetime.utcnow()
+    current_time = datetime.utcnow()
 
     # Fetch the most recent fuel level
     last_fuel_record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
