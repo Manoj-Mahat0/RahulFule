@@ -225,7 +225,34 @@ def detect_fuel_contamination():
     })
 
     return response
+@app.get("/detect-theft")
+def detect_fuel_theft():
+    fuel_record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
 
+    if not fuel_record:
+        return {"message": "No theft detected"}
+
+    last_fuel_level = fuel_record.get("previous_fuel_level", 0)
+    current_fuel_level = fuel_record.get("fuel_level", 0)
+    last_updated = fuel_record.get("last_updated")
+
+    if last_fuel_level is None or last_updated is None:
+        return {"message": "No theft detected"}
+
+    if isinstance(last_updated, str):
+        last_updated = datetime.strptime(last_updated, "%Y-%m-%d %H:%M:%S")
+
+    time_difference = datetime.utcnow() - last_updated
+
+    print(f"Previous Fuel Level: {last_fuel_level}, Current Fuel Level: {current_fuel_level}, Time Difference: {time_difference.total_seconds()}s")
+
+    if time_difference.total_seconds() < 120 and last_fuel_level > current_fuel_level and (last_fuel_level - current_fuel_level) > 10:
+        return {
+            "message": "Theft detected",
+            "alert": " Fuel theft detected! Immediate drop in fuel level."
+        }
+
+    return {"message": "No theft detected"}
 # 📢 **2️⃣ Fetch the Latest Alert Message**
 @app.get("/get-latest-alert")
 def get_latest_alert():
