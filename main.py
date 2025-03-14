@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from pymongo import MongoClient
 import bcrypt
 import jwt
-import datetime
+from datetime import datetime  # Import the datetime class
 from dotenv import load_dotenv
 import os
 import requests
