@@ -23,6 +23,7 @@ SENDER_EMAIL = "codeinlastbench@gmail.com"
 RECIPIENT_EMAIL = "manojmahato08779@gmail.com"
 APP_PASSWORD = "hloo qrlt qyvj hmak"  # Your Gmail App Password
 
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -208,7 +209,7 @@ def get_fuel_level():
 
         Please refill the tank as soon as possible.
         """
-        response["alert"] = "⚠️ Warning: Fuel level is below 30%! Please refill soon."
+        response["alert"] = " Warning: Fuel level is below 30%! Please refill soon."
         send_email_alert("⚠️ Fuel Level Alert", alert_msg)
 
         alert_logs_collection.insert_one({
@@ -243,7 +244,7 @@ def detect_fuel_contamination():
         "last_updated": timestamp
     })
 
-    alert_message = f"🚨 Fuel contamination detected! Level: {contamination}%."
+    alert_message = f" Fuel contamination detected! Level: {contamination}%."
     alert_logs_collection.insert_one({
         "alert": alert_message,
         "address": "Unknown",
@@ -291,7 +292,7 @@ def detect_fuel_theft():
     time_diff = (datetime.utcnow() - last_updated).total_seconds()
 
     if time_diff < 120 and prev > curr and (prev - curr) > 10:
-        alert = "🚨 Fuel theft detected! Sudden drop in fuel level."
+        alert = " Fuel theft detected! Sudden drop in fuel level."
         alert_logs_collection.insert_one({
             "alert": alert,
             "address": "Unknown",
