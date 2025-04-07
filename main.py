@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 import os
 import requests
 from pytz import timezone
+import smtplib
+from email.mime.text import MIMEText
 
 
 load_dotenv()
@@ -75,6 +77,34 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
 
+def send_email_alert(fuel_level, time_ist):
+    sender = "codeinlastbench@gmail.com"
+    recipient = "manojmahato08779@gmail.com"
+    app_password = "hloo qrlt qyvj hmak"  # Your App Password
+
+    subject = "⚠️ Fuel Level Alert"
+    body = f"""
+    Alert: Fuel level is critically low!
+
+    Fuel Level: {fuel_level}%
+    Time: {time_ist}
+
+    Please refill the tank as soon as possible.
+    """
+
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = sender
+    msg["To"] = recipient
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender, app_password)
+            server.send_message(msg)
+        print("✅ Email alert sent successfully!")
+    except Exception as e:
+        print("❌ Failed to send email:", e)
+        
 # JWT Token Generation
 def create_jwt_token(phone: str):
     payload = {
@@ -156,19 +186,16 @@ def update_fuel_level(fuel_data: FuelLevelUpdate):
         "current_fuel_level": fuel_data.fuel_level
     }
 
-# Get Fuel Level
+# FastAPI Endpoint
 @app.get("/fuel-level")
 def get_fuel_level():
-    # Fetch the most recent fuel level entry
     fuel_record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
 
     if not fuel_record:
         raise HTTPException(status_code=404, detail="Fuel level data not found")
 
-    # Get UTC timestamp
     last_updated_utc = fuel_record.get("last_updated", None)
 
-    # Convert to IST
     if last_updated_utc:
         ist_timezone = timezone('Asia/Kolkata')
         last_updated_ist = last_updated_utc.astimezone(ist_timezone)
@@ -181,9 +208,10 @@ def get_fuel_level():
         "last_updated": formatted_time
     }
 
-    # Add alert if fuel level is low
     if isinstance(fuel_record.get("fuel_level"), int) and fuel_record["fuel_level"] <= 30:
-        response["alert"] = "⚠️ Warning: Fuel level is below 30%. Please refill soon."
+        alert_msg = " Warning: Fuel level is below 30%. Please refill soon."
+        response["alert"] = alert_msg
+        send_email_alert(fuel_record["fuel_level"], formatted_time)
 
     return response
 
