@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
 import requests
+from pytz import timezone
 
 
 load_dotenv()
@@ -164,17 +165,25 @@ def get_fuel_level():
     if not fuel_record:
         raise HTTPException(status_code=404, detail="Fuel level data not found")
 
-    # Debugging: Print fetched data
-    print(f"Fetched Fuel Record: {fuel_record}")
+    # Get UTC timestamp
+    last_updated_utc = fuel_record.get("last_updated", None)
+
+    # Convert to IST
+    if last_updated_utc:
+        ist_timezone = timezone('Asia/Kolkata')
+        last_updated_ist = last_updated_utc.astimezone(ist_timezone)
+        formatted_time = last_updated_ist.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        formatted_time = "No data available"
 
     response = {
         "fuel_level": fuel_record.get("fuel_level", "Unknown"),
-        "last_updated": fuel_record.get("last_updated", "No data available")
+        "last_updated": formatted_time
     }
 
     # Add alert if fuel level is low
     if isinstance(fuel_record.get("fuel_level"), int) and fuel_record["fuel_level"] <= 30:
-        response["alert"] = " Warning: Fuel level is below 30%! Please refill soon."
+        response["alert"] = "⚠️ Warning: Fuel level is below 30%. Please refill soon."
 
     return response
 
