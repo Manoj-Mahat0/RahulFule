@@ -18,8 +18,11 @@ load_dotenv()
 # Environment Variables
 SECRET_KEY = os.getenv("SECRET_KEY", "mysecret")
 MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://Mj:ngY5YaP0VjT4BCSt@rfule.gh93u.mongodb.net/?retryWrites=true&w=majority&appName=RFule")
+# Email Credentials
+SENDER_EMAIL = "codeinlastbench@gmail.com"
+RECIPIENT_EMAIL = "manojmahato08779@gmail.com"
+APP_PASSWORD = "hloo qrlt qyvj hmak"  # Your Gmail App Password
 
-app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -77,33 +80,27 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
 
-def send_email_alert(fuel_level, time_ist):
-    sender = "codeinlastbench@gmail.com"
-    recipient = "manojmahato08779@gmail.com"
-    app_password = "hloo qrlt qyvj hmak"  # Your App Password
-
-    subject = "⚠️ Fuel Level Alert"
-    body = f"""
-    Alert: Fuel level is critically low!
-
-    Fuel Level: {fuel_level}%
-    Time: {time_ist}
-
-    Please refill the tank as soon as possible.
-    """
-
+def send_email_alert(subject, body):
     msg = MIMEText(body)
     msg["Subject"] = subject
-    msg["From"] = sender
-    msg["To"] = recipient
+    msg["From"] = SENDER_EMAIL
+    msg["To"] = RECIPIENT_EMAIL
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(sender, app_password)
+            server.login(SENDER_EMAIL, APP_PASSWORD)
             server.send_message(msg)
         print("✅ Email alert sent successfully!")
     except Exception as e:
         print("❌ Failed to send email:", e)
+
+
+def get_ist_time(dt_utc):
+    if dt_utc:
+        utc_time = dt_utc.replace(tzinfo=pytz.UTC)
+        ist_time = utc_time.astimezone(pytz.timezone("Asia/Kolkata"))
+        return ist_time.strftime("%Y-%m-%d %H:%M:%S")
+    return "No timestamp available."
         
 # JWT Token Generation
 def create_jwt_token(phone: str):
@@ -186,7 +183,6 @@ def update_fuel_level(fuel_data: FuelLevelUpdate):
         "current_fuel_level": fuel_data.fuel_level
     }
 
-# FastAPI Endpoint
 @app.get("/fuel-level")
 def get_fuel_level():
     fuel_record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
@@ -194,115 +190,144 @@ def get_fuel_level():
     if not fuel_record:
         raise HTTPException(status_code=404, detail="Fuel level data not found")
 
-    last_updated_utc = fuel_record.get("last_updated", None)
-
-    if last_updated_utc:
-        ist_timezone = timezone('Asia/Kolkata')
-        last_updated_ist = last_updated_utc.astimezone(ist_timezone)
-        formatted_time = last_updated_ist.strftime("%Y-%m-%d %H:%M:%S")
-    else:
-        formatted_time = "No data available"
+    fuel_level = fuel_record.get("fuel_level", "Unknown")
+    last_updated = fuel_record.get("last_updated")
+    time_ist = get_ist_time(last_updated)
 
     response = {
-        "fuel_level": fuel_record.get("fuel_level", "Unknown"),
-        "last_updated": formatted_time
+        "fuel_level": fuel_level,
+        "last_updated": time_ist
     }
 
-    if isinstance(fuel_record.get("fuel_level"), int) and fuel_record["fuel_level"] <= 30:
-        alert_msg = " Warning: Fuel level is below 30%. Please refill soon."
-        response["alert"] = alert_msg
-        send_email_alert(fuel_record["fuel_level"], formatted_time)
+    if isinstance(fuel_level, int) and fuel_level <= 30:
+        alert_msg = f"""
+        ⚠️ Alert: Fuel level is critically low!
+
+        Fuel Level: {fuel_level}%
+        Time: {time_ist}
+
+        Please refill the tank as soon as possible.
+        """
+        response["alert"] = "⚠️ Warning: Fuel level is below 30%! Please refill soon."
+        send_email_alert("⚠️ Fuel Level Alert", alert_msg)
+
+        alert_logs_collection.insert_one({
+            "alert": response["alert"],
+            "address": "Unknown",
+            "last_updated": last_updated
+        })
 
     return response
 
-# Detect Fuel Theft
-@app.get("/detect-fule")
+
+@app.get("/detect-fuel")
 def detect_fuel_contamination():
-    timestamp = datetime.utcnow()  # Correct way to get current UTC time
+    timestamp = datetime.utcnow()
+    record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
 
-    # Fetch the most recent fuel level entry from MongoDB
-    last_fuel_record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
-
-    if not last_fuel_record:
+    if not record:
         raise HTTPException(status_code=404, detail="Fuel level data not found")
 
-    previous_fuel_level = last_fuel_record.get("previous_fuel_level", 0)
-    current_fuel_level = last_fuel_record.get("fuel_level", 0)
+    prev = record.get("previous_fuel_level", 0)
+    curr = record.get("fuel_level", 0)
 
-    # Calculate contamination level (percentage of fuel loss)
-    if previous_fuel_level > 0:
-        contamination_level = ((previous_fuel_level - current_fuel_level) / previous_fuel_level) * 100
-    else:
-        contamination_level = 0  # Avoid division by zero
+    contamination = ((prev - curr) / prev) * 100 if prev > 0 else 0
+    contamination = round(contamination, 2)
 
-    # Prepare response
-    response = {
-        "message": "Fuel contamination detected",
-        "previous_fuel_level": previous_fuel_level,
-        "current_fuel_level": current_fuel_level,
-        "contamination_level": round(contamination_level, 2),
-        "last_updated": last_fuel_record.get("last_updated")
-    }
-
-    # Store contamination data into `fule_detection_collection`
     fule_detection_collection.insert_one({
-        "status": "HIGH" if contamination_level > 10 else "LOW",
-        "address": "Unknown",  # No address in GET request
-        "contamination_level": contamination_level,
-        "previous_fuel_level": previous_fuel_level,
-        "current_fuel_level": current_fuel_level,
+        "status": "HIGH" if contamination > 10 else "LOW",
+        "address": "Unknown",
+        "contamination_level": contamination,
+        "previous_fuel_level": prev,
+        "current_fuel_level": curr,
         "last_updated": timestamp
     })
 
-    # Store alert in `alert_logs_collection`
-    alert_message = f" Fuel contamination detected! Contamination Level: {contamination_level:.2f}%."
+    alert_message = f"🚨 Fuel contamination detected! Level: {contamination}%."
     alert_logs_collection.insert_one({
-        "message": alert_message,
-        "timestamp": timestamp
+        "alert": alert_message,
+        "address": "Unknown",
+        "last_updated": timestamp
     })
 
-    return response
+    if contamination > 10:
+        time_ist = get_ist_time(timestamp)
+        email_body = f"""
+        🚨 Alert: Fuel contamination detected!
+
+        Contamination Level: {contamination}%
+        Time: {time_ist}
+
+        Please investigate immediately.
+        """
+        send_email_alert("🚨 Fuel Contamination Alert", email_body)
+
+    return {
+        "message": "Fuel contamination checked",
+        "previous_fuel_level": prev,
+        "current_fuel_level": curr,
+        "contamination_level": contamination,
+        "last_updated": get_ist_time(timestamp)
+    }
+
+
 @app.get("/detect-theft")
 def detect_fuel_theft():
-    fuel_record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
+    record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
 
-    if not fuel_record:
+    if not record:
         return {"message": "No theft detected"}
 
-    last_fuel_level = fuel_record.get("previous_fuel_level", 0)
-    current_fuel_level = fuel_record.get("fuel_level", 0)
-    last_updated = fuel_record.get("last_updated")
+    prev = record.get("previous_fuel_level", 0)
+    curr = record.get("fuel_level", 0)
+    last_updated = record.get("last_updated")
 
-    if last_fuel_level is None or last_updated is None:
+    if not prev or not last_updated:
         return {"message": "No theft detected"}
 
     if isinstance(last_updated, str):
         last_updated = datetime.strptime(last_updated, "%Y-%m-%d %H:%M:%S")
 
-    time_difference = datetime.utcnow() - last_updated
+    time_diff = (datetime.utcnow() - last_updated).total_seconds()
 
-    print(f"Previous Fuel Level: {last_fuel_level}, Current Fuel Level: {current_fuel_level}, Time Difference: {time_difference.total_seconds()}s")
+    if time_diff < 120 and prev > curr and (prev - curr) > 10:
+        alert = "🚨 Fuel theft detected! Sudden drop in fuel level."
+        alert_logs_collection.insert_one({
+            "alert": alert,
+            "address": "Unknown",
+            "last_updated": datetime.utcnow()
+        })
 
-    if time_difference.total_seconds() < 120 and last_fuel_level > current_fuel_level and (last_fuel_level - current_fuel_level) > 10:
+        send_email_alert("🚨 Fuel Theft Detected", f"""
+        🚨 Alert: Fuel theft suspected!
+
+        Previous Level: {prev}%
+        Current Level: {curr}%
+        Time: {get_ist_time(last_updated)}
+
+        Immediate action is advised.
+        """)
+
         return {
             "message": "Theft detected",
-            "alert": " Fuel theft detected! Immediate drop in fuel level."
+            "alert": alert
         }
 
     return {"message": "No theft detected"}
-# 📢 **2️⃣ Fetch the Latest Alert Message**
+
+
 @app.get("/get-latest-alert")
 def get_latest_alert():
-    latest_alert = alert_logs_collection.find_one({}, sort=[("last_updated", -1)])
+    alert = alert_logs_collection.find_one({}, sort=[("last_updated", -1)])
 
-    if not latest_alert:
+    if not alert:
         raise HTTPException(status_code=404, detail="No alerts found.")
 
     return {
-        "alert": latest_alert.get("alert", " No recent alerts."),
-        "address": latest_alert.get("address", "Unknown location."),
-        "last_updated": latest_alert.get("last_updated", "No timestamp available.")
-        }
+        "alert": alert.get("alert", "No recent alerts."),
+        "address": alert.get("address", "Unknown location."),
+        "last_updated": get_ist_time(alert.get("last_updated"))
+    }
 
 
 if __name__ == "__main__":
