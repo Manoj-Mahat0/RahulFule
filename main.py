@@ -178,7 +178,6 @@ def update_fuel_level(fuel_data: FuelLevelUpdate):
 
     return {
     "message": "Fuel contamination data recorded successfully",
-    "status": data.status,
     "contamination_level": contamination,
     "previous_fuel_level": prev,
     "current_fuel_level": curr
