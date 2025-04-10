@@ -221,56 +221,58 @@ def get_fuel_level():
     return response
 
 
-@app.get("/detect-fuel")
-def detect_fuel_contamination():
+@app.post("/detect-fuel")
+def detect_fuel_contamination(data: FuleDetectionUpdate):
     timestamp = datetime.utcnow()
     record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
 
     if not record:
         raise HTTPException(status_code=404, detail="Fuel level data not found")
 
-    prev = record.get("previous_fuel_level", 0)
-    curr = record.get("fuel_level", 0)
+    prev = data.previous_fuel_level
+    curr = data.current_fuel_level
 
     contamination = ((prev - curr) / prev) * 100 if prev > 0 else 0
     contamination = round(contamination, 2)
 
+    status = "HIGH" if contamination > 10 else "LOW"
+
     fule_detection_collection.insert_one({
-        "status": "HIGH" if contamination > 10 else "LOW",
-        "address": "Unknown",
+        "status": status,
+        "address": data.address,
         "contamination_level": contamination,
         "previous_fuel_level": prev,
         "current_fuel_level": curr,
         "last_updated": timestamp
     })
 
-    alert_message = f" Fuel contamination detected! Level: {contamination}%."
+    # Optional email alert
+    if status == "HIGH":
+        alert_msg = f"""
+        🚨 High fuel contamination detected!
+
+        Address: {data.address}
+        Contamination Level: {contamination}%
+        Previous Fuel Level: {prev}
+        Current Fuel Level: {curr}
+        Time: {get_ist_time(timestamp)}
+
+        Please inspect the tank for tampering or leaks.
+        """
+        send_email_alert("⚠️ Fuel Contamination Alert", alert_msg)
+
     alert_logs_collection.insert_one({
-        "alert": alert_message,
-        "address": "Unknown",
+        "alert": f"Fuel contamination level: {contamination}%",
+        "status": status,
+        "address": data.address,
         "last_updated": timestamp
     })
-
-    if contamination > 10:
-        time_ist = get_ist_time(timestamp)
-        email_body = f"""
-        🚨 Alert: Fuel contamination detected!
-
-        Contamination Level: {contamination}%
-        Time: {time_ist}
-
-        Please investigate immediately.
-        """
-        send_email_alert("🚨 Fuel Contamination Alert", email_body)
 
     return {
-        "message": "Fuel contamination checked",
-        "previous_fuel_level": prev,
-        "current_fuel_level": curr,
+        "message": "Fuel contamination data recorded successfully",
         "contamination_level": contamination,
-        "last_updated": get_ist_time(timestamp)
+        "status": status
     }
-
 
 @app.get("/detect-theft")
 def detect_fuel_theft():
