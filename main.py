@@ -19,9 +19,9 @@ load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY", "mysecret")
 MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://Mj:ngY5YaP0VjT4BCSt@rfule.gh93u.mongodb.net/?retryWrites=true&w=majority&appName=RFule")
 # Email Credentials
-SENDER_EMAIL = "codeinlastbench@gmail.com"
-RECIPIENT_EMAIL = "manojmahato08779@gmail.com"
-APP_PASSWORD = "hloo qrlt qyvj hmak"  # Your Gmail App Password
+SENDER_EMAIL = "rahulrajdec13@gmail.com"
+RECIPIENT_EMAIL = "rajrahul869448@gmail.com"
+APP_PASSWORD = "dwuu hycl pqwh ugzy"  # Your Gmail App Password
 
 app = FastAPI()
 
