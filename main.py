@@ -177,10 +177,13 @@ def update_fuel_level(fuel_data: FuelLevelUpdate):
     })
 
     return {
-        "message": "Fuel level updated successfully",
-        "previous_fuel_level": last_fuel_level,
-        "current_fuel_level": fuel_data.fuel_level
-    }
+    "message": "Fuel contamination data recorded successfully",
+    "status": data.status,
+    "contamination_level": contamination,
+    "previous_fuel_level": prev,
+    "current_fuel_level": curr
+}
+
 
 @app.get("/fuel-level")
 def get_fuel_level():
