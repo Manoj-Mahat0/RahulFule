@@ -66,8 +66,6 @@ class FuelLevelUpdate(BaseModel):
 class FuleDetectionUpdate(BaseModel):
     status: str  # Accepts "HIGH" or "LOW"
     address: str  # Location where fuel contamination is detected
-    previous_fuel_level: float  # Fuel level before contamination
-    current_fuel_level: float   # Fuel level after contamination
 
     
 class DeviceStatusUpdate(BaseModel):
@@ -229,16 +227,14 @@ def detect_fuel_contamination(data: FuleDetectionUpdate):
     if not record:
         raise HTTPException(status_code=404, detail="Fuel level data not found")
 
-    prev = data.previous_fuel_level
-    curr = data.current_fuel_level
+    prev = record.get("previous_fuel_level", 0)
+    curr = record.get("fuel_level", 0)
 
     contamination = ((prev - curr) / prev) * 100 if prev > 0 else 0
     contamination = round(contamination, 2)
 
-    status = "HIGH" if contamination > 10 else "LOW"
-
     fule_detection_collection.insert_one({
-        "status": status,
+        "status": data.status,
         "address": data.address,
         "contamination_level": contamination,
         "previous_fuel_level": prev,
@@ -246,10 +242,10 @@ def detect_fuel_contamination(data: FuleDetectionUpdate):
         "last_updated": timestamp
     })
 
-    # Optional email alert
-    if status == "HIGH":
+    # Optional: Email only on HIGH contamination
+    if data.status.upper() == "HIGH":
         alert_msg = f"""
-        🚨 High fuel contamination detected!
+         High fuel contamination detected!
 
         Address: {data.address}
         Contamination Level: {contamination}%
@@ -257,13 +253,13 @@ def detect_fuel_contamination(data: FuleDetectionUpdate):
         Current Fuel Level: {curr}
         Time: {get_ist_time(timestamp)}
 
-        Please inspect the tank for tampering or leaks.
+        Immediate inspection is recommended.
         """
-        send_email_alert("⚠️ Fuel Contamination Alert", alert_msg)
+        send_email_alert(" Fuel Contamination Alert", alert_msg)
 
     alert_logs_collection.insert_one({
         "alert": f"Fuel contamination level: {contamination}%",
-        "status": status,
+        "status": data.status,
         "address": data.address,
         "last_updated": timestamp
     })
@@ -271,8 +267,9 @@ def detect_fuel_contamination(data: FuleDetectionUpdate):
     return {
         "message": "Fuel contamination data recorded successfully",
         "contamination_level": contamination,
-        "status": status
+        "status": data.status
     }
+
 
 @app.get("/detect-theft")
 def detect_fuel_theft():
