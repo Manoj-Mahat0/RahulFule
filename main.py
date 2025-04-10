@@ -273,19 +273,20 @@ def detect_fuel_contamination(data: FuleDetectionUpdate):
         "status": data.status
     }
 
-@app.get("/latest")
-def get_latest_fuel_contamination():
+@app.get("/contamination-report")
+def get_latest_contamination():
     record = fule_detection_collection.find_one({}, sort=[("last_updated", -1)])
 
     if not record:
-        raise HTTPException(status_code=404, detail="No fuel contamination data found")
+        raise HTTPException(status_code=404, detail="No contamination data found")
 
     return {
-        "contamination_level": record.get("contamination_level", "Unknown"),
-        "previous_fuel_level": record.get("previous_fuel_level", "Unknown"),
-        "current_fuel_level": record.get("current_fuel_level", "Unknown"),
+        "contamination_level": record.get("contamination_level", 0),
+        "previous_fuel_level": record.get("previous_fuel_level", 0),
+        "current_fuel_level": record.get("current_fuel_level", 0),
         "timestamp": get_ist_time(record.get("last_updated"))
     }
+
 
 
 @app.get("/detect-theft")
