@@ -143,7 +143,7 @@ def register_user(user: UserRegister):
     return {"message": "User registered successfully"}
 
 # Login User
-@app.post("/logins")
+@app.post("/login")
 def login_user(user: UserLogin):
     user_record = users_collection.find_one({"phone": user.phone})
     if user_record and verify_password(user.password, user_record["password"]):
@@ -157,7 +157,7 @@ def login_user(user: UserLogin):
 def protected_route(user=Depends(get_current_user)):
     return {"message": "Protected content", "user": user}
 
-@app.post("/update-fuels")
+@app.post("/update-fuel")
 def update_fuel_level(fuel_data: FuelLevelUpdate):
     current_time = datetime.utcnow()
 
@@ -181,7 +181,7 @@ def update_fuel_level(fuel_data: FuelLevelUpdate):
     }
 
 
-@app.get("/fuel-levels")
+@app.get("/fuel-level")
 def get_fuel_level():
     fuel_record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
 
@@ -218,7 +218,7 @@ def get_fuel_level():
     return response
 
 
-@app.post("/detect-fuels")
+@app.post("/detect-fuel")
 def detect_fuel_contamination(data: FuleDetectionUpdate):
     timestamp = datetime.utcnow()
     record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
@@ -285,7 +285,7 @@ def get_latest_contamination():
 
 
 
-@app.get("/detect-thefts")
+@app.get("/detect-theft")
 def detect_fuel_theft():
     record = fuel_collection.find_one({}, sort=[("last_updated", -1)])
 
@@ -330,7 +330,7 @@ def detect_fuel_theft():
     return {"message": "No theft detected"}
 
 
-@app.get("/get-latest-alerts")
+@app.get("/get-latest-alert")
 def get_latest_alert():
     alert = alert_logs_collection.find_one({}, sort=[("last_updated", -1)])
 
